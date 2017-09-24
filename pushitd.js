@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+var _MYIDEN = '' ;
 var _AUTHTOKEN = '' ;
 var _WSENDPOINT = 'wss://stream.pushbullet.com/websocket' ;
 var _PUSHENDPOINT = 'https://api.pushbullet.com/v2/pushes' ;
@@ -14,40 +15,42 @@ ws.on('open', function open(){
 
 var Notifier = new NotificationCenter();
 ws.on('message', function incoming(data){
-	var nowMs = (new Date).getTime()/1000 ;
 	var jsonObj = JSON.parse(data) ;
-	if ( jsonObj.type != 'nop' ){
-		if ( jsonObj.subtype == 'push' ) {
-			setTimeout(function(){
-				options = {
-					url: _PUSHENDPOINT + '?limit=1',
-					headers: {
-						'Access-Token':_AUTHTOKEN
-					}
-				}
-				Request.get(options, function(error, response){
-					var responseObj = JSON.parse(response.body) ;
-					var pushBody = responseObj.pushes[0].body ;
-					var senderName = responseObj.pushes[0].sender_name ;
-					var senderEmail = responseObj.pushes[0].sender_email ;
-					
-					if ( responseObj.pushes[0].type == 'note' ){
-						Notifier.notify({
-							title: 'PushIt! ' + senderName,
-							message: pushBody,
-							sound: 'Frog',
-							timeout: 300,
-							reply: true
-						}, function(error, response, meta){
-							var replyStr = meta.activationValue ;
-							noteReply(senderEmail, replyStr) ;
-						})
-					}
-				}) ;
-			}, 1000 ) ;
-		}
+	console.log(data) ;
+	if ( jsonObj.type == 'tickle' && jsonObj.subtype == 'push' ){
+		getData() ;
 	}
 }) ;
+
+function getData(){
+	options = {
+		url: _PUSHENDPOINT + '?limit=1' ,
+		headers: {
+			'Access-Token': _AUTHTOKEN,
+		},
+	}
+	Request.get(options, function(error, response){
+		var responseObj = JSON.parse(response.body) ;
+		var pushBody = responseObj.pushes[0].body ;
+		var senderIden = responseObj.pushes[0].sender_iden ;
+		if ( pushBody != 'undefined' && senderIden != _MYIDEN ) {
+			var senderName = responseObj.pushes[0].sender_name ;
+			var senderEmail = responseObj.pushes[0].sender_email ;
+			Notifier.notify({
+				title: 'PushIt!',
+				message: pushBody,
+				sound: 'Frog',
+				wait: 300,
+				reply: true
+			}, function(err, resp, meta){
+				var replyBody = meta.activationValue ;
+				if ( replyBody != '' ) {
+					noteReply(senderEmail, replyBody) ;
+				}
+			}) ;
+		}
+	}) ;
+}
 
 function noteReply(user, body) {
 	replyOptions = {
